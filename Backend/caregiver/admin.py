@@ -1,7 +1,7 @@
 
-# Register your models here.
 from django.contrib import admin
 from .models import Caregiver
 
-# Register your models here.
+# Register other models
 admin.site.register(Caregiver)
+

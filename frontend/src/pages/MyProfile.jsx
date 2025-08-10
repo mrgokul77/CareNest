@@ -19,7 +19,6 @@ const MyProfile = () => {
   });
 
   useEffect(() => {
-    // Check if user is logged in
     const user = localStorage.getItem('user');
     if (!user) {
       navigate('/login');
@@ -28,27 +27,60 @@ const MyProfile = () => {
     fetchProfile();
   }, [navigate]);
 
-  const fetchProfile = async () => {
-    try {
-      const response = await axios.get('http://localhost:8000/api/profile/', {
-        withCredentials: true,
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-      setProfile(response.data);
-      setFormData(response.data);
-    } catch (error) {
-      if (error.response?.status === 401) {
-        setError('Please log in to view your profile');
-        navigate('/login');
-      } else {
-        setError(`Error fetching profile: ${error.response?.data?.message || error.message}`);
+const fetchProfile = async () => {
+  let token = localStorage.getItem("access_token");
+
+  try {
+    const response = await axios.get("http://localhost:8000/api/profile/", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    setProfile(response.data);
+    setFormData(response.data);
+  } catch (error) {
+    if (error.response?.status === 401 && localStorage.getItem("refresh_token")) {
+      try {
+        // Attempt to refresh access token
+        const refreshToken = localStorage.getItem("refresh_token");
+
+        const res = await axios.post("http://localhost:8000/api/token/refresh/", {
+          refresh: refreshToken,
+        });
+
+        localStorage.setItem("access_token", res.data.access);
+        token = res.data.access;
+
+        // Retry profile request with new token
+        const retryResponse = await axios.get("http://localhost:8000/api/accounts/profile/", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        setProfile(retryResponse.data);
+        setFormData(retryResponse.data);
+      } catch (refreshErr) {
+        setError("Session expired. Please login again.");
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("refresh_token");
+        localStorage.removeItem("user");
+        navigate("/login");
       }
-    } finally {
-      setLoading(false);
+    } else if (error.response?.status === 403) {
+      setError("You do not have permission to view this page");
+    } else {
+      setError(
+        `Error fetching profile: ${error.response?.data?.message || error.message}`
+      );
     }
-  };
+  } finally {
+    setLoading(false);
+  }
+};
+
+
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -61,11 +93,13 @@ const MyProfile = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await axios.put('http://localhost:8000/api/profile/', formData, {
-        withCredentials: true,
+      const token = localStorage.getItem('access_token');
+      await axios.put('http://localhost:8000/api/profile/', formData, {
         headers: {
           'Content-Type': 'application/json',
-        }
+          'Authorization': `Bearer ${token}`,
+        },
+        withCredentials: true,
       });
       setProfile(formData);
       setIsEditing(false);
@@ -73,7 +107,9 @@ const MyProfile = () => {
     } catch (error) {
       if (error.response?.status === 401) {
         setError('Please log in to update your profile');
-        navigate('/login');
+        navigate('/');
+      } else if (error.response?.status === 403) {
+        setError('You do not have permission to update your profile');
       } else {
         setError(`Error updating profile: ${error.response?.data?.message || error.message}`);
       }
@@ -208,7 +244,9 @@ const MyProfile = () => {
                 <div>
                   <h3 className="text-sm font-medium text-gray-500">Gender</h3>
                   <p className="mt-1 text-lg text-gray-900">
-                    {profile?.gender === 'M' ? 'Male' : profile?.gender === 'F' ? 'Female' : profile?.gender === 'O' ? 'Other' : 'Not specified'}
+                    {profile?.gender === 'M' ? 'Male' :
+                    profile?.gender === 'F' ? 'Female' :
+                    profile?.gender === 'O' ? 'Other' : 'Not specified'}
                   </p>
                 </div>
                 <div>
@@ -236,4 +274,4 @@ const MyProfile = () => {
   );
 };
 
-export default MyProfile; 
+export default MyProfile;

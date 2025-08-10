@@ -1,12 +1,13 @@
 import React, { useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
-import { Eye, EyeOff } from "lucide-react"; // Import Lucide React icons
+import { Eye, EyeOff } from "lucide-react";
 
 const Signup = () => {
     const [username, setUsername] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
+    const [role, setRole] = useState("family");
     const [showPassword, setShowPassword] = useState(false);
     const [errorMsg, setErrorMsg] = useState("");
 
@@ -17,17 +18,31 @@ const Signup = () => {
         setErrorMsg("");
 
         try {
-            const response = await axios.post("http://127.0.0.1:8000/api/signup/", {
+            const response = await axios.post("http://127.0.0.1:8000/api/accounts/signup/", {
                 username,
                 email,
                 password,
+                role,
             }, {
                 headers: { "Content-Type": "application/json" }
             });
 
             console.log(response.data);
-            alert("Signup successful! Please log in.");
-            navigate("/login");
+
+            // Store the user data in localStorage (optional if auto-login is intended)
+            const userData = {
+                username: response.data.username,
+                role: response.data.role,
+                email: response.data.email,
+                id: response.data.id
+            };
+            localStorage.setItem("user", JSON.stringify(userData));
+
+            // 🔁 Notify Navbar of login state change
+            window.dispatchEvent(new Event("storageUpdate"));
+
+            // Redirect to login (or directly to home if auto-login)
+            navigate("/");
         } catch (error) {
             console.error("Error:", error.response ? error.response.data : error.message);
             setErrorMsg(error.response?.data?.message || "An error occurred. Please try again.");
@@ -82,6 +97,19 @@ const Signup = () => {
                     </button>
                 </div>
 
+                <div className="w-full">
+                    <p>Role</p>
+                    <select
+                        className="border border-zinc-300 rounded w-full p-2 mt-1"
+                        value={role}
+                        onChange={(e) => setRole(e.target.value)}
+                        required
+                    >
+                        <option value="family">Family</option>
+                        <option value="caregiver">Caregiver</option>
+                    </select>
+                </div>
+
                 <button className="bg-primary text-white w-full py-2 rounded-md text-base">
                     Create Account
                 </button>
@@ -89,7 +117,7 @@ const Signup = () => {
                 <p>
                     Already have an account?{" "}
                     <span
-                        onClick={() => navigate("/login")}
+                        onClick={() => navigate("/")}
                         className="text-primary underline cursor-pointer"
                     >
                         Login here

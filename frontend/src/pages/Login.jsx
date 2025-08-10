@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import axios from "axios";
+import axiosInstance from "../utils/axiosConfig";
 import { useNavigate } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react"; // Import Lucide React icons
 
@@ -15,27 +15,51 @@ const Login = () => {
         setErrorMsg("");
 
         try {
-            const response = await axios.post("http://127.0.0.1:8000/api/login/", {
+            const response = await axiosInstance.post("/accounts/token/", {
                 username,
                 password,
-            }, {
-                headers: { "Content-Type": "application/json" }
             });
 
             if (response.status === 200) {
-                console.log(response.data);
-                alert("Login successful!");
-
-                const userData = { username };
+                const userData = {
+                    username: response.data.user.username,
+                    role: response.data.user.role,
+                    id: response.data.user.id,
+                    email: response.data.user.email
+                };
+                
+                // Store tokens and user data
                 localStorage.setItem("user", JSON.stringify(userData));
+                localStorage.setItem("access_token", response.data.access);
+                localStorage.setItem("refresh_token", response.data.refresh);
+                
+                // Set axios default authorization header
+axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${response.data.access}`;
 
-                navigate("/");
+// 🔁 Notify Navbar of login change
+window.dispatchEvent(new Event("storageUpdate"));
+
+
+                // Role-based navigation
+                let destination = '/';
+                if (response.data.user.role === 'admin') {
+                    destination = '/admin';
+                } else if (response.data.user.role === 'caregiver') {
+                    destination = '/caregiver-panel';
+                } else if (response.data.user.role === 'family') {
+                    destination = '/home';
+                }
+                navigate(destination);
+
+                return; // Exit function after successful login
             } else {
                 throw new Error("Unexpected response from server.");
             }
         } catch (error) {
-            console.error("Error:", error.response ? error.response.data : error.message);
-            setErrorMsg(error.response?.data?.message || "An error occurred. Please try again.");
+            const errorMessage = error.response?.data?.detail || 
+                            error.response?.data?.message || 
+                            "Invalid credentials. Please try again.";
+            setErrorMsg(errorMessage);
         }
     };
 
@@ -79,6 +103,16 @@ const Login = () => {
                 <button className="bg-primary text-white w-full py-2 rounded-md text-base">
                     Login
                 </button>
+
+                <p>
+                    Don't have an account?{" "}
+                    <span
+                        onClick={() => navigate("/signup")}
+                        className="text-primary underline cursor-pointer"
+                    >
+                        Signup
+                    </span>
+                </p>
             </div>
         </form>
     );
